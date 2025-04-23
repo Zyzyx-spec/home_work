@@ -8,7 +8,6 @@ import logging
 from app.main import app
 from app.database import Base, get_db
 from app.models import SwiftCode
-from app.schemas import SwiftCodeType
 
 # Configure test database
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_swift_codes.db"
@@ -84,7 +83,7 @@ def test_data() -> list[dict]:
             "address": "100 NORTH TRYON STREET, CHARLOTTE NC 28255",
             "country_iso2": "US",
             "country_name": "UNITED STATES",
-            "code_type": SwiftCodeType.HEADQUARTER,
+            "code_type": "HEADQUARTER",  # Zmienione na string
             "is_active": True
         },
         {
@@ -93,7 +92,7 @@ def test_data() -> list[dict]:
             "address": "100 FEDERAL STREET, BOSTON MA 02110",
             "country_iso2": "US",
             "country_name": "UNITED STATES",
-            "code_type": SwiftCodeType.BRANCH,
+            "code_type": "BRANCH",  # Zmienione na string
             "is_active": True
         }
     ]
