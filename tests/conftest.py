@@ -70,11 +70,17 @@ async def Client(TestApp) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest_asyncio.fixture
 async def PopulatedDb(DbSession: AsyncSession, TestData: list[dict]) -> AsyncGenerator[AsyncSession, None]:
-    for data in TestData:
-        valid_data = {k: v for k, v in data.items() if hasattr(SwiftCode, k)}
-        DbSession.add(SwiftCode(**valid_data))
-    await DbSession.commit()
-    yield DbSession
+    try:
+        for data in TestData:
+            valid_data = {k: v for k, v in data.items() if hasattr(SwiftCode, k)}
+            DbSession.add(SwiftCode(**valid_data))
+        await DbSession.commit()
+        yield DbSession
+    except Exception:
+        await DbSession.rollback()
+        raise
+    finally:
+        await DbSession.close()
 
 @pytest.fixture
 def TestData() -> list[dict]:
