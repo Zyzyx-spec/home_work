@@ -83,7 +83,7 @@ def test_data() -> list[dict]:
             "address": "100 NORTH TRYON STREET, CHARLOTTE NC 28255",
             "country_iso2": "US",
             "country_name": "UNITED STATES",
-            "code_type": "HEADQUARTER",  # Zmienione na string
+            "code_type": "HEADQUARTER",  
             "is_active": True
         },
         {
@@ -92,7 +92,7 @@ def test_data() -> list[dict]:
             "address": "100 FEDERAL STREET, BOSTON MA 02110",
             "country_iso2": "US",
             "country_name": "UNITED STATES",
-            "code_type": "BRANCH",  # Zmienione na string
+            "code_type": "BRANCH",  
             "is_active": True
         }
     ]
