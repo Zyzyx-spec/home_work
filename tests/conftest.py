@@ -1,10 +1,10 @@
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
-from typing import AsyncGenerator, Iterator
+from typing import AsyncGenerator
 from datetime import datetime, timezone
-from fastapi import HTTPException
 
 from app.main import app
 from app.database import Base, get_db
@@ -25,9 +25,8 @@ TestingSessionLocal = async_sessionmaker(
     autoflush=False
 )
 
-@pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Clean DB session"""
+# Override FastAPI dependency
+async def OverrideGetDb() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         try:
             yield session
@@ -38,30 +37,47 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 
-@pytest.fixture(scope="module")
-async def test_app() -> AsyncGenerator:
-    """Test app with overridden dependencies"""
-    app.dependency_overrides[get_db] = override_get_db
-    
+@pytest_asyncio.fixture
+async def DbSession() -> AsyncGenerator[AsyncSession, None]:
+    async with TestingSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+@pytest_asyncio.fixture(scope="module")
+async def TestApp() -> AsyncGenerator:
+    app.dependency_overrides[get_db] = OverrideGetDb
+
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield app
-    
+
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     app.dependency_overrides.clear()
 
-@pytest.fixture
-async def client(test_app) -> AsyncGenerator[AsyncClient, None]:
-    """Test HTTP client"""
-    async with AsyncClient(app=test_app, base_url="http://test") as client:
+@pytest_asyncio.fixture
+async def Client(TestApp) -> AsyncGenerator[AsyncClient, None]:
+    async with AsyncClient(app=TestApp, base_url="http://test") as client:
         yield client
 
+@pytest_asyncio.fixture
+async def PopulatedDb(DbSession: AsyncSession, TestData: list[dict]) -> AsyncGenerator[AsyncSession, None]:
+    for data in TestData:
+        valid_data = {k: v for k, v in data.items() if hasattr(SwiftCode, k)}
+        DbSession.add(SwiftCode(**valid_data))
+    await DbSession.commit()
+    yield DbSession
+
 @pytest.fixture
-def test_data() -> list[dict]:
-    """Test data"""
+def TestData() -> list[dict]:
     now = datetime.now(timezone.utc)
     return [
         {
@@ -87,24 +103,3 @@ def test_data() -> list[dict]:
             "updated_at": now
         }
     ]
-
-@pytest.fixture
-async def populated_db(db_session: AsyncSession, test_data: list[dict]) -> AsyncSession:
-    """DB with test data"""
-    for data in test_data:
-        valid_data = {k: v for k, v in data.items() if hasattr(SwiftCode, k)}
-        db_session.add(SwiftCode(**valid_data))
-    await db_session.commit()
-    return db_session
-
-async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Override database dependency"""
-    async with TestingSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
