@@ -5,6 +5,7 @@ from sqlalchemy.pool import NullPool
 from typing import AsyncGenerator
 from datetime import datetime, timezone
 import uuid
+from fastapi import HTTPException
 
 from app.main import app
 from app.database import Base, get_db
