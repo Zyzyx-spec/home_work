@@ -2,6 +2,7 @@ import pytest
 from app.services import get_swift_code, create_swift_code
 from app.schemas import SwiftCodeCreate
 from app.models import SwiftCode
+from fastapi import HTTPException
 
 @pytest.mark.asyncio
 async def test_get_swift_code_service(db_session, populated_db):
