@@ -23,12 +23,12 @@ async def test_get_swift_code_service(db_session, populated_db):
 async def test_create_swift_code_service(db_session):
     """Test create_swift_code service function"""
     new_code = SwiftCodeCreate(
-        swift_code="TESTGB2LXXX",
-        bank_name="TEST BANK",
+        swiftCode="TESTGB2LXXX",  
+        bankName="TEST BANK",
         address="123 TEST STREET",
-        country_iso2="GB",
-        country_name="UNITED KINGDOM",
-        is_headquarter=True
+        countryISO2="GB",
+        countryName="UNITED KINGDOM",
+        isHeadquarter=True
     )
     
     # Test successful creation
