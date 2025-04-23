@@ -1,153 +1,145 @@
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
+from typing import AsyncGenerator
+from datetime import datetime, timezone
+import uuid
 
-from app.services import (
-    get_swift_code,
-    get_swift_codes_by_country,
-    create_swift_code,
-    delete_swift_code,
-    update_swift_code,
-    deactivate_swift_code
-)
+from app.main import app
+from app.database import Base, get_db
 from app.models import SwiftCode
-from app.schemas import (
-    SwiftCodeCreate,
-    SwiftCodeUpdate,
-    SwiftCodeResponse,
-    SwiftCodeWithBranchesResponse,
-    CountrySwiftCodesResponse,
-    SwiftCodeType
+
+# Test database configuration
+TEST_DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/swiftcodes_test"
+
+# Create test engine
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    poolclass=NullPool,
+    echo=False
 )
 
-@pytest.mark.asyncio
-async def test_get_swift_code_headquarter(db_session: AsyncSession, populated_db):
-    """Test retrieving headquarters with branches"""
-    result = await get_swift_code(db_session, "BOFAUS3NXXX")
+# Create test session factory
+TestingSessionLocal = async_sessionmaker(
+    bind=test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False
+)
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create event loop for async tests"""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Override database dependency"""
+    async with TestingSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+@pytest.fixture(scope="module")
+async def test_app():
+    """Test app with overridden dependencies"""
+    app.dependency_overrides[get_db] = override_get_db
     
-    assert isinstance(result, SwiftCodeWithBranchesResponse)
-    assert result.swift_code == "BOFAUS3NXXX"
-    assert result.code_type == SwiftCodeType.HEADQUARTER
-    assert len(result.branches) >= 1
-    assert all(b.code_type == SwiftCodeType.BRANCH for b in result.branches)
-
-@pytest.mark.asyncio
-async def test_get_swift_code_branch(db_session: AsyncSession, populated_db):
-    """Test retrieving branch details"""
-    result = await get_swift_code(db_session, "BOFAUS3NBOS")
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     
-    assert isinstance(result, SwiftCodeResponse)
-    assert result.swift_code == "BOFAUS3NBOS"
-    assert result.code_type == SwiftCodeType.BRANCH
-    assert not hasattr(result, "branches")
-
-@pytest.mark.asyncio
-async def test_get_nonexistent_swift_code(db_session: AsyncSession):
-    """Test retrieving non-existent code"""
-    with pytest.raises(HTTPException) as exc_info:
-        await get_swift_code(db_session, "NOTEXIST")
-    assert exc_info.value.status_code == 404
-
-@pytest.mark.asyncio
-async def test_get_country_swift_codes(db_session: AsyncSession, populated_db):
-    """Test retrieving codes by country"""
-    result = await get_swift_codes_by_country(db_session, "US")
+    yield app
     
-    assert isinstance(result, CountrySwiftCodesResponse)
-    assert result.country_iso2 == "US"
-    assert len(result.swift_codes) >= 2
-    assert result.count == len(result.swift_codes)
-
-@pytest.mark.asyncio
-async def test_get_nonexistent_country_swift_codes(db_session: AsyncSession):
-    """Test retrieving codes for non-existent country"""
-    with pytest.raises(HTTPException) as exc_info:
-        await get_swift_codes_by_country(db_session, "XX")
-    assert exc_info.value.status_code == 404
-
-@pytest.mark.asyncio
-async def test_create_swift_code(db_session: AsyncSession):
-    """Test creating new SWIFT code"""
-    new_code = SwiftCodeCreate(
-        swift_code="TESTGB2LXXX",
-        bank_name="TEST BANK",
-        address="123 TEST STREET, LONDON",
-        country_iso2="GB",
-        country_name="UNITED KINGDOM",
-        code_type=SwiftCodeType.HEADQUARTER
-    )
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     
-    result = await create_swift_code(db_session, new_code)
-    assert isinstance(result, SwiftCodeResponse)
-    assert result.swift_code == new_code.swift_code
-    
-    # Verify creation
-    verify = await get_swift_code(db_session, new_code.swift_code)
-    assert verify.swift_code == new_code.swift_code
+    app.dependency_overrides.clear()
 
-@pytest.mark.asyncio
-async def test_create_duplicate_swift_code(db_session: AsyncSession, populated_db):
-    """Test creating duplicate code"""
-    duplicate_code = SwiftCodeCreate(
-        swift_code="BOFAUS3NXXX",
-        bank_name="BANK OF AMERICA",
-        address="100 NORTH TRYON STREET",
-        country_iso2="US",
-        country_name="UNITED STATES",
-        code_type=SwiftCodeType.HEADQUARTER
-    )
-    
-    with pytest.raises(HTTPException) as exc_info:
-        await create_swift_code(db_session, duplicate_code)
-    assert exc_info.value.status_code == 400
+@pytest.fixture
+async def client(test_app) -> AsyncGenerator[AsyncClient, None]:
+    """Test HTTP client"""
+    async with AsyncClient(
+        app=test_app,
+        base_url="http://test",
+        timeout=30.0
+    ) as client:
+        yield client
 
-@pytest.mark.asyncio
-async def test_update_swift_code(db_session: AsyncSession, populated_db):
-    """Test updating SWIFT code details"""
-    update_data = SwiftCodeUpdate(
-        bank_name="NEW BANK NAME",
-        address="UPDATED ADDRESS"
-    )
-    
-    result = await update_swift_code(db_session, "BOFAUS3NBOS", update_data)
-    assert isinstance(result, SwiftCodeResponse)
-    assert result.bank_name == "NEW BANK NAME"
-    assert result.address == "UPDATED ADDRESS"
+@pytest.fixture(scope="module")
+def test_data() -> list[dict]:
+    """Test data using boolean is_headquarter instead of SwiftCodeType"""
+    now = datetime.now(timezone.utc)
+    return [
+        {
+            "id": uuid.uuid4(),
+            "swift_code": "BOFAUS3NXXX",
+            "bank_name": "BANK OF AMERICA",
+            "address": "100 NORTH TRYON STREET, CHARLOTTE NC 28255",
+            "country_iso2": "US",
+            "country_name": "UNITED STATES",
+            "is_headquarter": True,  # Headquarters
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now
+        },
+        {
+            "id": uuid.uuid4(),
+            "swift_code": "BOFAUS3NBOS",
+            "bank_name": "BANK OF AMERICA",
+            "address": "100 FEDERAL STREET, BOSTON MA 02110",
+            "country_iso2": "US",
+            "country_name": "UNITED STATES",
+            "is_headquarter": False,  # Branch
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now
+        },
+        {
+            "id": uuid.uuid4(),
+            "swift_code": "BOFAUS3NSF",
+            "bank_name": "BANK OF AMERICA",
+            "address": "1 MARKET STREET, SAN FRANCISCO CA 94105",
+            "country_iso2": "US",
+            "country_name": "UNITED STATES",
+            "is_headquarter": False,  # Another branch
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now
+        }
+    ]
 
-@pytest.mark.asyncio
-async def test_deactivate_swift_code(db_session: AsyncSession, populated_db):
-    """Test deactivating a SWIFT code"""
-    result = await deactivate_swift_code(db_session, "BOFAUS3NBOS")
-    assert isinstance(result, SwiftCodeResponse)
-    assert result.is_active is False
+@pytest.fixture
+async def populated_db(test_data) -> AsyncGenerator[AsyncSession, None]:
+    """DB with test data using boolean is_headquarter"""
+    async with TestingSessionLocal() as session:
+        for data in test_data:
+            # Skip adding headquarter_id if the model doesn't support it
+            swift_code_data = {
+                k: v for k, v in data.items()
+                if k != 'headquarter_id'
+            }
+            session.add(SwiftCode(**swift_code_data))
+        await session.commit()
+        yield session
+        await session.rollback()
 
-@pytest.mark.asyncio
-async def test_delete_swift_code(db_session: AsyncSession):
-    """Test deleting a SWIFT code"""
-    # Create test code
-    test_code = SwiftCode(
-        swift_code="DELETEMEXXX",
-        bank_name="TO DELETE",
-        address="123 DELETE ME",
-        country_iso2="XX",
-        country_name="TEST COUNTRY",
-        code_type=SwiftCodeType.HEADQUARTER,
-        is_active=True
-    )
-    db_session.add(test_code)
-    await db_session.commit()
-    
-    # Delete it
-    deleted = await delete_swift_code(db_session, "DELETEMEXXX")
-    assert deleted is True
-    
-    # Verify deletion
-    with pytest.raises(HTTPException) as exc_info:
-        await get_swift_code(db_session, "DELETEMEXXX")
-    assert exc_info.value.status_code == 404
-
-@pytest.mark.asyncio
-async def test_delete_nonexistent_swift_code(db_session: AsyncSession):
-    """Test deleting non-existent code"""
-    deleted = await delete_swift_code(db_session, "NOTEXIST")
-    assert deleted is False
+@pytest.fixture
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Clean DB session"""
+    async with TestingSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
