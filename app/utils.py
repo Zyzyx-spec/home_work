@@ -15,14 +15,12 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
 
     try:
         with open(filepath, mode='r', encoding='utf-8-sig') as csvfile:
-            # Read and filter non-empty lines
             lines = [line for line in csvfile if line.strip()]
             if not lines:
                 raise HTTPException(status_code=400, detail="CSV file is empty")
                 
             reader = csv.DictReader(lines)
-            
-            # Validate required columns
+                  
             required_columns = {
                 'COUNTRY ISO2 CODE',
                 'SWIFT CODE', 
@@ -44,7 +42,7 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
             batch = []
             batch_size = 100  # Optimal batch size for performance
             
-            async with db.begin():  # Main transaction
+            async with db.begin(): 
                 for row_num, row in enumerate(reader, start=1):
                     try:
                         # Create record from CSV row
@@ -62,10 +60,10 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
                         )
                         batch.append(record)
                         
-                        # Process batch when full
+                        
                         if len(batch) >= batch_size:
                             db.add_all(batch)
-                            await db.flush()  # Send to DB
+                            await db.flush() 
                             imported += len(batch)
                             logger.debug(f"Processed {imported} records")
                             batch = []
@@ -74,13 +72,12 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
                         logger.error(f"Error in row {row_num}: {str(e)}")
                         continue
                 
-                # Process final batch
+        
                 if batch:
                     db.add_all(batch)
                     await db.flush()
                     imported += len(batch)
                 
-                # Transaction will commit automatically when context exits
                 
             logger.info(
                 f"Import completed - Success: {imported}, Failed: {row_num - imported}, "
@@ -100,7 +97,7 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
         raise HTTPException(status_code=404, detail=error_msg)
         
     except HTTPException:
-        raise  # Re-raise our own HTTP exceptions
+        raise 
         
     except SQLAlchemyError as e:
         error_msg = f"Database error during import: {str(e)}"

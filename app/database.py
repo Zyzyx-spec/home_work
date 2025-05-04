@@ -16,17 +16,17 @@ DATABASE_URL = "postgresql+asyncpg://user:password@db/swiftcodes"
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,
-    pool_pre_ping=True,  # New in 2.0 - checks connection health
+    pool_pre_ping=True,  # N
     pool_recycle=3600    # Recycle connections after 1 hour
 )
 
-# Session factory with new 2.0 best practices
+
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
-    future=True  # Enable 2.0 future mode
+    future=True  # 
 )
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
