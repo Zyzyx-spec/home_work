@@ -8,8 +8,8 @@ async def test_get_swift_code(Client: AsyncClient, PopulatedDb):  # Changed clie
     response = await Client.get("/api/v1/swift-codes/BOFAUS3NXXX")
     assert response.status_code == 200
     data = response.json()
-    assert data["swift_code"] == "BOFAUS3NXXX"
-    assert data["is_headquarter"] is True
+    assert data["swiftCode"] == "BOFAUS3NXXX"
+    assert data["isHeadquarter"] is True
 
 async def test_create_swift_code(Client: AsyncClient):
     new_code = {

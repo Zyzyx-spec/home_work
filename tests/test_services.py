@@ -1,18 +1,18 @@
 import pytest
 from app.services import get_swift_code, create_swift_code
-from app.schemas import SwiftCodeCreate
+from app.schemas import SwiftCodeCreate, SwiftCodeWithBranches
 from app.models import SwiftCode
 from fastapi import HTTPException
 
 @pytest.mark.asyncio
-async def test_get_swift_code_service(DbSession, PopulatedDb):  # Changed db_session to DbSession
+async def test_get_swift_code_service(DbSession, PopulatedDb):  
     """Test get_swift_code service function"""
     # Test getting existing SWIFT code
     swift_code = await get_swift_code(DbSession, "BOFAUS3NXXX")
-    assert isinstance(swift_code, SwiftCode)
-    assert swift_code.swift_code == "BOFAUS3NXXX"
-    assert swift_code.bank_name == "BANK OF AMERICA"
-    assert swift_code.is_headquarter is True
+    assert isinstance(swift_code, SwiftCodeWithBranches)  
+    assert swift_code.swiftCode == "BOFAUS3NXXX"  
+    assert swift_code.bankName == "BANK OF AMERICA"
+    assert swift_code.isHeadquarter is True
     
     # Test non-existent SWIFT code
     with pytest.raises(HTTPException) as exc_info:
