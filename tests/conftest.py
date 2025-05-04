@@ -104,7 +104,8 @@ def TestData() -> list[dict]:
             "is_headquarter": True,
             "is_active": True,
             "created_at": now,
-            "updated_at": now
+            "updated_at": now,
+            "code_type": "headquarter"
         },
         {
             "swift_code": "BOFAUS3NBOS",
@@ -115,6 +116,7 @@ def TestData() -> list[dict]:
             "is_headquarter": False,
             "is_active": True,
             "created_at": now,
-            "updated_at": now
+            "updated_at": now,
+            "code_type": "branch"
         }
     ]

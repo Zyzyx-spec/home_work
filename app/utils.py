@@ -10,24 +10,7 @@ from .models import SwiftCode
 logger = logging.getLogger(__name__)
 
 async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/Interns_2025_SWIFT_CODES.csv") -> Dict[str, int]:
-    """
-    Import SWIFT codes from CSV file into database with proper transaction handling.
-    
-    Args:
-        db: Async SQLAlchemy session
-        filepath: Path to CSV file
-        
-    Returns:
-        Dictionary with import statistics:
-        {
-            "imported": number of successfully imported records,
-            "total": total rows processed, 
-            "skipped": number of failed rows
-        }
-        
-    Raises:
-        HTTPException: For file errors or validation failures
-    """
+   
     logger.info(f"Starting CSV import from {filepath}")
 
     try:
@@ -68,7 +51,7 @@ async def import_swift_codes_from_csv(db: AsyncSession, filepath: str = "/app/In
                         record = SwiftCode(
                             country_iso2=row['COUNTRY ISO2 CODE'].strip().upper(),
                             swift_code=row['SWIFT CODE'].strip().upper(),
-                            code_type=row['CODE TYPE'].strip().lower(),
+                                code_type='headquarter' if row['CODE TYPE'].strip().upper() == 'HEADQUARTER' else 'branch',
                             bank_name=row['NAME'].strip(),
                             address=f"{row['ADDRESS']}, {row['TOWN NAME']}",
                             town_name=row['TOWN NAME'].strip(),

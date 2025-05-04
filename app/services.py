@@ -128,7 +128,7 @@ async def create_swift_code(db: AsyncSession, data: SwiftCodeCreate):
             country_name=data.country_name.upper(),
             is_headquarter=data.is_headquarter,
             time_zone=data.time_zone,
-            code_type='headquarter' if data.is_headquarter else 'branch'
+            code_type='headquarter' if data.is_headquarter else 'branch'  # Zawsze ustawione
         )
 
         db.add(new_code)
