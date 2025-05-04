@@ -11,15 +11,14 @@ async def test_get_swift_code(Client: AsyncClient, PopulatedDb):  # Changed clie
     assert data["swift_code"] == "BOFAUS3NXXX"
     assert data["is_headquarter"] is True
 
-@pytest.mark.asyncio
 async def test_create_swift_code(Client: AsyncClient):
     new_code = {
-        "swiftCode": "TESTGB2LXXX",
-        "bankName": "TEST BANK",
+        "swift_code": "TESTGB2LXXX",  # snake_case
+        "bank_name": "TEST BANK",
         "address": "123 TEST STREET, LONDON",
-        "countryISO2": "GB", 
-        "countryName": "UNITED KINGDOM",
-        "isHeadquarter": True
+        "country_iso2": "GB",
+        "country_name": "UNITED KINGDOM",
+        "is_headquarter": True
     }
     response = await Client.post("/api/v1/swift-codes", json=new_code)
     assert response.status_code == 201

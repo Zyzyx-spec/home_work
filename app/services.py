@@ -108,7 +108,6 @@ async def get_swift_codes_by_country(db: AsyncSession, country_code: str):
         )
 
 async def create_swift_code(db: AsyncSession, data: SwiftCodeCreate):
-    """Create new SWIFT code"""
     try:
         # Check if code exists
         existing = await db.execute(
@@ -123,13 +122,13 @@ async def create_swift_code(db: AsyncSession, data: SwiftCodeCreate):
 
         new_code = SwiftCode(
             swift_code=data.swift_code.upper(),
-            bank_name=data.bankName,
+            bank_name=data.bank_name,
             address=data.address,
-            country_iso2=data.countryISO2.upper(),
-            country_name=data.countryName.upper(),
-            is_headquarter=data.isHeadquarter,
-            time_zone=data.timeZone if hasattr(data, 'timeZone') else None,
-            code_type='headquarter' if data.isHeadquarter else 'branch'
+            country_iso2=data.country_iso2.upper(),
+            country_name=data.country_name.upper(),
+            is_headquarter=data.is_headquarter,
+            time_zone=data.time_zone,
+            code_type='headquarter' if data.is_headquarter else 'branch'
         )
 
         db.add(new_code)

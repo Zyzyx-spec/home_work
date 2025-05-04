@@ -19,17 +19,16 @@ async def test_get_swift_code_service(DbSession, PopulatedDb):  # Changed db_ses
         await get_swift_code(DbSession, "NONEXISTENT")
     assert exc_info.value.status_code == 404
 
-@pytest.mark.asyncio
 async def test_create_swift_code_service(DbSession):
-    """Test create_swift_code service function"""
     new_code = SwiftCodeCreate(
-        swiftCode="TESTGB2LXXX",  # Note: matches schema field name
-        bankName="TEST BANK",
+        swift_code="TESTGB2LXXX",
+        bank_name="TEST BANK",
         address="123 TEST STREET",
-        countryISO2="GB",
-        countryName="UNITED KINGDOM",
-        isHeadquarter=True
+        country_iso2="GB",
+        country_name="UNITED KINGDOM",
+        is_headquarter=True
     )
+    
     
     # Test successful creation
     result = await create_swift_code(DbSession, new_code)
