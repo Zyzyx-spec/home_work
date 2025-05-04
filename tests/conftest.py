@@ -26,6 +26,15 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 # Override FastAPI dependency
+
+@pytest_asyncio.fixture(autouse=True)
+async def initialize_db():
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
 async def OverrideGetDb() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         try:
@@ -84,7 +93,7 @@ async def PopulatedDb(DbSession: AsyncSession, TestData: list[dict]) -> AsyncGen
 
 @pytest.fixture
 def TestData() -> list[dict]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     return [
         {
             "swift_code": "BOFAUS3NXXX",

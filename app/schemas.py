@@ -3,13 +3,16 @@ from datetime import datetime
 from typing import List, Optional
 
 class SwiftCodeBase(BaseModel):
-    swiftCode: str = Field(..., min_length=8, max_length=11)
-    bankName: str = Field(..., min_length=2, max_length=255)
+    swift_code: str = Field(..., min_length=8, max_length=11, alias="swiftCode")
+    bank_name: str = Field(..., min_length=2, max_length=255, alias="bankName")
     address: str = Field(..., min_length=5, max_length=512)
-    countryISO2: str = Field(..., min_length=2, max_length=2)
-    countryName: str
-    isHeadquarter: bool
-    timeZone: Optional[str] = None
+    country_iso2: str = Field(..., min_length=2, max_length=2, alias="countryISO2")
+    country_name: str = Field(..., alias="countryName")
+    is_headquarter: bool = Field(..., alias="isHeadquarter")
+    time_zone: Optional[str] = Field(None, alias="timeZone")
+
+    class Config:
+        allow_population_by_field_name = True
 
 class SwiftCodeResponse(SwiftCodeBase):
     id: str
