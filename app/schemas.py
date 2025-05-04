@@ -1,49 +1,39 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
-class SwiftCodeBase(BaseModel):
-    swift_code: str = Field(..., min_length=8, max_length=11)
-    bank_name: str = Field(..., min_length=2, max_length=255)
+class SwiftCodeBasic(BaseModel):
+    swiftCode: str = Field(..., min_length=8, max_length=11)
+    bankName: str = Field(..., min_length=2, max_length=255)
     address: str = Field(..., min_length=5, max_length=512)
-    country_iso2: str = Field(..., min_length=2, max_length=2)
-    country_name: str
-    is_headquarter: bool
-    time_zone: Optional[str] = None
-
-    class Config:
-
-        allow_population_by_field_name = True
-        
-        json_encoders = {
-            "swift_code": {"alias": "swiftCode"},
-            "bank_name": {"alias": "bankName"},
-            "country_iso2": {"alias": "countryISO2"},
-            "country_name": {"alias": "countryName"},
-            "is_headquarter": {"alias": "isHeadquarter"},
-            "time_zone": {"alias": "timeZone"}
-        }
-
-class SwiftCodeCreate(SwiftCodeBase):
-    pass
-
-class SwiftCodeResponse(SwiftCodeBase):
-    id: str
-    isActive: bool
-    createdAt: datetime
-    updatedAt: datetime
-
-class BranchResponse(BaseModel):
-    swiftCode: str
-    bankName: str
-    address: str
-    countryISO2: str
+    countryISO2: str = Field(..., min_length=2, max_length=2)
     isHeadquarter: bool
 
-class SwiftCodeWithBranchesResponse(SwiftCodeResponse):
-    branches: List[BranchResponse] = []
+    model_config = ConfigDict(populate_by_name=True)
+
+class SwiftCodeWithBranches(SwiftCodeBasic):
+    countryName: str
+    branches: List[SwiftCodeBasic] = []
 
 class CountrySwiftCodesResponse(BaseModel):
     countryISO2: str
     countryName: str
-    swiftCodes: List[BranchResponse]
+    swiftCodes: List[SwiftCodeBasic]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class SwiftCodeCreate(BaseModel):
+    swiftCode: str = Field(..., min_length=8, max_length=11)
+    bankName: str = Field(..., min_length=2, max_length=255)
+    address: str = Field(..., min_length=5, max_length=512)
+    countryISO2: str = Field(..., min_length=2, max_length=2)
+    countryName: str
+    isHeadquarter: bool
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class SwiftCodeCreateResponse(BaseModel):
+    message: str
+
+class SwiftCodeDeleteResponse(BaseModel):
+    message: str

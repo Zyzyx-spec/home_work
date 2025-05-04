@@ -5,7 +5,7 @@ from app.models import SwiftCode
 @pytest.mark.asyncio
 async def test_get_swift_code(Client: AsyncClient, PopulatedDb):  # Changed client to Client and populated_db to PopulatedDb
     """Test GET /swift-codes/{swift_code} endpoint"""
-    response = await Client.get("/swift-codes/BOFAUS3NXXX")
+    response = await Client.get("/api/v1/swift-codes/BOFAUS3NXXX")
     assert response.status_code == 200
     data = response.json()
     assert data["swift_code"] == "BOFAUS3NXXX"

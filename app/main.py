@@ -1,28 +1,45 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, ProgrammingError
-from typing import Annotated
+from typing import Annotated, Union
+from contextlib import asynccontextmanager
 import logging
-from fastapi import APIRouter
+from .database import get_db, init_db
+from . import services
+from .schemas import (
+    SwiftCodeBasic,
+    SwiftCodeWithBranches,
+    CountrySwiftCodesResponse,
+    SwiftCodeCreate,
+    SwiftCodeCreateResponse,
+    SwiftCodeDeleteResponse
+)
 
-from .database import init_db, get_db, engine, AsyncSessionLocal
-from . import services, utils
-from .schemas import SwiftCodeCreate, SwiftCodeResponse, CountrySwiftCodesResponse
-
-# Initialize logging
+# Konfiguracja logowania
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create main FastAPI app
-app = FastAPI(title="SWIFT Codes API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Zarządzanie cyklem życia aplikacji"""
+    await init_db()
+    logger.info("Application startup complete")
+    yield
+    logger.info("Application shutdown")
 
-# Create API router with /api prefix
+# Inicjalizacja aplikacji
+app = FastAPI(
+    title="SWIFT Codes API",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Router dla endpointów API
 api_router = APIRouter(prefix="/api")
 
 @api_router.get(
     "/v1/swift-codes/{swift_code}",
-    response_model=SwiftCodeResponse,
+    response_model=Union[SwiftCodeWithBranches, SwiftCodeBasic],
     responses={
         404: {"description": "SWIFT code not found"},
         500: {"description": "Internal server error"}
@@ -33,18 +50,11 @@ async def get_swift_code(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
-    Retrieve details for a specific SWIFT code.
+    Pobierz szczegóły kodu SWIFT (headquarters lub branch)
+    - Dla headquarters zwraca również listę branches
+    - Dla branch zwraca tylko podstawowe informacje
     """
-    try:
-        return await services.get_swift_code(db, swift_code)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching SWIFT code: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    return await services.get_swift_code(db, swift_code)
 
 @api_router.get(
     "/v1/swift-codes/country/{country_code}",
@@ -59,22 +69,15 @@ async def get_country_codes(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
-    Get all SWIFT codes for a specific country.
+    Pobierz wszystkie kody SWIFT dla określonego kraju
+    - Zwraca zarówno headquarters jak i branches
+    - Sortowane alfabetycznie po kodzie SWIFT
     """
-    try:
-        return await services.get_swift_codes_by_country(db, country_code)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching country codes: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    return await services.get_swift_codes_by_country(db, country_code)
 
 @api_router.post(
     "/v1/swift-codes",
-    response_model=SwiftCodeResponse,
+    response_model=SwiftCodeCreateResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
         400: {"description": "SWIFT code already exists"},
@@ -87,23 +90,16 @@ async def create_code(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
-    Create a new SWIFT code entry.
+    Utwórz nowy wpis kodu SWIFT
+    - Wymaga wszystkich pól zgodnie ze schematem
+    - Automatycznie konwertuje kody kraju na wielkie litery
     """
-    try:
-        return await services.create_swift_code(db, data)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating SWIFT code: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    return await services.create_swift_code(db, data)
 
 @api_router.delete(
     "/v1/swift-codes/{swift_code}",
+    response_model=SwiftCodeDeleteResponse,
     responses={
-        200: {"description": "SWIFT code deleted successfully"},
         404: {"description": "SWIFT code not found"},
         500: {"description": "Internal server error"}
     }
@@ -113,37 +109,16 @@ async def delete_swift_code(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
-    Delete a SWIFT code entry.
+    Usuń kod SWIFT (soft delete)
+    - W rzeczywistości ustawia flagę is_active na False
+    - Nie usuwa fizycznie rekordu z bazy danych
     """
-    try:
-        deleted = await services.delete_swift_code(db, swift_code)
-        if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"SWIFT code {swift_code} not found"
-            )
-        return {"message": "SWIFT code deleted successfully"}
-    except Exception as e:
-        logger.error(f"Error deleting SWIFT code: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    return await services.delete_swift_code(db, swift_code)
 
-@api_router.get("/health")
+@api_router.get("/health", tags=["Health"])
 async def health_check():
-    """Service health check endpoint"""
+    """Endpoint sprawdzający stan aplikacji"""
     return JSONResponse(content={"status": "healthy"})
 
-# Include the router with /api prefix
+# Dołącz router do aplikacji
 app.include_router(api_router)
-
-@app.on_event("startup")
-async def startup():
-    try:
-        await init_db()
-        async with AsyncSessionLocal() as session:
-            await utils.import_swift_codes_from_csv(session)  # No nested transaction
-    except Exception as e:
-        logging.critical(f"Startup failed: {e}")
-        raise
